@@ -1526,8 +1526,9 @@ tr:last-child td {
 // --- Config ---
 const ELEVENLABS_API_KEY = 'sk_31e07c6745cb29bd3755e61a339a1f8c94f059ef0201f1d2';
 const MICHAEL_VOICE_ID = 'Fahco4VZzobUeiPqni1S';
-const TTS_API = 'https://api.elevenlabs.io/v1/text-to-speech/' + MICHAEL_VOICE_ID;
-const CHUNK_SIZE = 2500;
+const TTS_API = 'https://api.elevenlabs.io/v1/text-to-speech/' + MICHAEL_VOICE_ID + '/stream';
+const FIRST_CHUNK_SIZE = 400;  // Small first chunk for fast start (~2-3 sec)
+const CHUNK_SIZE = 1500;       // Smaller chunks = less wait between plays
 
 // --- State ---
 let isPlaying = false;
@@ -1613,14 +1614,17 @@ function getChapterText(chapterEl) {
   return text;
 }
 
-function splitIntoChunks(text, maxLen) {
+function splitIntoChunks(text) {
   const chunks = [];
   const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
   let current = '';
+  let isFirst = true;
   for (const sentence of sentences) {
-    if ((current + sentence).length > maxLen && current.length > 0) {
+    const limit = isFirst ? FIRST_CHUNK_SIZE : CHUNK_SIZE;
+    if ((current + sentence).length > limit && current.length > 0) {
       chunks.push(current.trim());
       current = sentence;
+      isFirst = false;
     } else {
       current += sentence;
     }
@@ -1639,7 +1643,7 @@ async function fetchAudioBlob(text) {
     },
     body: JSON.stringify({
       text: text,
-      model_id: 'eleven_multilingual_v2',
+      model_id: 'eleven_turbo_v2_5',
       voice_settings: {
         stability: 0.5,
         similarity_boost: 0.75,
@@ -1695,7 +1699,9 @@ async function playChapterVoice() {
     const text = getChapterText(chaptersArr[i]);
     if (!text || text.length < 20) continue;
 
-    const chunks = splitIntoChunks(text, CHUNK_SIZE);
+    const chunks = splitIntoChunks(text);
+    let nextBlobPromise = null;
+
     for (let c = 0; c < chunks.length; c++) {
       if (isStopping) break;
 
@@ -1706,14 +1712,23 @@ async function playChapterVoice() {
       if (isStopping) break;
 
       try {
-        updateVoiceStatus('Reading: ' + chapterName + ' (' + (c + 1) + '/' + chunks.length + ')');
-        const blob = await fetchAudioBlob(chunks[c]);
+        updateVoiceStatus('Reading: ' + chapterName + (chunks.length > 1 ? ' (' + (c + 1) + '/' + chunks.length + ')' : ''));
+
+        // Use pre-fetched blob or fetch fresh
+        const blob = nextBlobPromise ? await nextBlobPromise : await fetchAudioBlob(chunks[c]);
+        nextBlobPromise = null;
         if (isStopping) break;
+
+        // Pre-fetch NEXT chunk while current one plays
+        if (c + 1 < chunks.length && !isStopping) {
+          nextBlobPromise = fetchAudioBlob(chunks[c + 1]).catch(() => null);
+        }
+
         await playBlob(blob);
       } catch (err) {
         console.error('TTS error:', err);
+        nextBlobPromise = null;
         updateVoiceStatus('Voice error — retrying...');
-        // Wait a moment then try next chunk
         await new Promise(r => setTimeout(r, 1000));
       }
     }
