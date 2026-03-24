@@ -1571,11 +1571,45 @@ window.addEventListener('scroll', () => {
 });
 
 // --- Voice / TTS ---
+// Pronunciation guide — displayed text stays the same, only TTS hears these
+const PRONUNCIATION_MAP = [
+  [/\bYHWH\b/g, 'Yahweh'],
+  [/\bNephilim\b/g, 'Nef-ih-leem'],
+  [/\bbene elohim\b/gi, 'ben-ay eloh-heem'],
+  [/\bMashiach\b/g, 'Mah-shee-ahk'],
+  [/\bYeshua HaMashiach\b/g, 'Yeh-shoo-ah Ha-Mah-shee-ahk'],
+  [/\bYeshua\b/g, 'Yeh-shoo-ah'],
+  [/\bIesous\b/g, 'Ee-ay-soos'],
+  [/\bChristos\b/g, 'Khris-tos'],
+  [/\bSemjaza\b/g, 'Sem-yah-zah'],
+  [/\bAzazel\b/g, 'Ah-zah-zel'],
+  [/\bAnunnaki\b/g, 'Ah-noo-nah-kee'],
+  [/\bNeteru\b/g, 'Neh-teh-roo'],
+  [/\bQuetzalcoatl\b/g, 'Ket-zal-co-aht-ul'],
+  [/\bSemiramis\b/g, 'Seh-meer-ah-mis'],
+  [/\bTammuz\b/g, 'Tah-mooz'],
+  [/\bEsagila\b/g, 'Eh-sah-gee-lah'],
+  [/\bMarduk\b/g, 'Mar-dook'],
+  [/\bSukkot\b/g, 'Sue-koht'],
+  [/\bLemaitre\b/g, 'Luh-met-ruh'],
+  [/\bLemaître\b/g, 'Luh-met-ruh'],
+  [/\banshei hashem\b/g, 'ahn-shay ha-shem'],
+  [/\btekton\b/g, 'tek-tone'],
+];
+
+function applyPronunciations(text) {
+  for (const [pattern, replacement] of PRONUNCIATION_MAP) {
+    text = text.replace(pattern, replacement);
+  }
+  return text;
+}
+
 function getChapterText(chapterEl) {
   const clone = chapterEl.cloneNode(true);
   clone.querySelectorAll('.chapter-label, .verdict-label, .chain-num, .ref, .chain-title, table, .table-wrap').forEach(el => el.remove());
   let text = clone.textContent || clone.innerText || '';
   text = text.replace(/\s+/g, ' ').trim();
+  text = applyPronunciations(text);
   return text;
 }
 
